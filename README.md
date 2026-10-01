@@ -28,7 +28,13 @@ App web para hacer ingeniería inversa de cualquier video: sube el archivo y obt
    - Prompt de video con acciones por tiempo y ajustes para Veo/Flow, Kling, Seedance y Runway.
    - Negative prompts, texto en pantalla para postproducción y checklist de fidelidad.
    - Biblia de consistencia (personajes, productos, locaciones y look) usada en todas las tomas.
-4. Exporta el informe y los prompts en Markdown (y los prompts también en JSON).
+4. **Guardar y exportar:**
+   - **Historial automático** ("Mis análisis"): cada análisis se guarda solo en el navegador
+     (IndexedDB) y se puede reabrir o eliminar. Nada sale del equipo.
+   - **Archivo de proyecto** (`.iiv.json`): guarda todo (informe, métricas, tomas, fotogramas y
+     prompts) y se vuelve a abrir con la línea de tiempo interactiva desde "Abrir proyecto".
+   - **Exportar PDF**: versión para imprimir en fondo claro; en el diálogo elige "Guardar como PDF".
+   - Descarga del informe y los prompts en Markdown (y los prompts también en JSON).
 
 ## Variables de entorno
 

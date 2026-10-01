@@ -148,3 +148,58 @@ button.small { padding: 6px 10px; font-size: .8rem; }
 .pl-title img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
 .pl-title span { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .pl-title small { font-size: .78rem; }
+
+/* Historial y barra de guardado */
+.history { margin-bottom: 20px; }
+.history-head { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 8px; }
+.history-head h2 { margin: 0; }
+.history-list { display: grid; gap: 8px; max-height: 320px; overflow: auto; }
+.history-item { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; }
+.history-item.active { border-color: var(--accent); }
+.history-open { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+.history-open:focus-visible { outline: 2px solid var(--accent-2); border-radius: 8px; }
+.history-open img, .history-ph { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex: none; background: var(--panel); }
+.history-open span { display: flex; flex-direction: column; min-width: 0; }
+.history-open b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-open small { font-size: .78rem; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.toolbar .muted { font-size: .85rem; }
+
+/* Vista de impresión / PDF */
+#print-view { display: none; }
+@media print {
+  @page { margin: 14mm; }
+  html, body { background: #fff !important; color: #111 !important; }
+  .screen-only { display: none !important; }
+  #print-view { display: block; font-size: 10.5pt; line-height: 1.45; color: #111; }
+  #print-view * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #print-view h1 { font-size: 20pt; margin: 4px 0; }
+  #print-view h2 { font-size: 14pt; margin: 18px 0 8px; border-bottom: 2px solid #7c5cff; padding-bottom: 4px; }
+  #print-view h3 { font-size: 11.5pt; margin: 12px 0 6px; }
+  #print-view h4 { font-size: 10.5pt; margin: 8px 0 4px; }
+  .pv-cover { border-left: 5px solid #7c5cff; padding-left: 12px; margin-bottom: 10px; }
+  .pv-kicker { text-transform: uppercase; letter-spacing: .08em; font-size: 8.5pt; color: #6b21a8; margin: 0; }
+  .pv-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  .pv-table th, .pv-table td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+  .pv-table th { background: #f3f0ff; }
+  .pv-shots img { width: 46px; height: auto; border-radius: 3px; }
+  .pv-shots tr { break-inside: avoid; }
+  .pv-palette { display: flex; flex-wrap: wrap; gap: 10px; font-size: 9pt; }
+  .pv-palette div { display: flex; align-items: center; gap: 5px; }
+  .pv-palette span { width: 18px; height: 18px; border-radius: 3px; border: 1px solid #999; display: inline-block; }
+  .pv-break { break-before: page; }
+  #print-view .md h1 { font-size: 13pt; border-top: 1px solid #ddd; padding-top: 8px; margin-top: 14px; }
+  #print-view .md h1:first-child { border-top: 0; }
+  #print-view .md table { display: table; width: 100%; border-collapse: collapse; font-size: 9pt; }
+  #print-view .md th, #print-view .md td { border: 1px solid #ccc; padding: 4px 6px; }
+  #print-view .md th { background: #f3f0ff; }
+  #print-view .md tr { break-inside: avoid; }
+  #print-view .md blockquote { border-left: 3px solid #7c5cff; color: #444; }
+  #print-view pre, #print-view .md pre, #print-view .md code { background: #f6f6f8; color: #111; border: 1px solid #ddd; }
+  #print-view pre { white-space: pre-wrap; word-break: break-word; padding: 6px 8px; border-radius: 4px; font-size: 8.5pt; margin: 0; }
+  .pv-shot { break-inside: avoid; border-top: 1px solid #ddd; padding-top: 6px; }
+  .pv-shot-body { display: grid; grid-template-columns: 90px 1fr; gap: 10px; }
+  .pv-shot-body img { width: 90px; border-radius: 4px; }
+  .pv-neg { color: #555; font-size: 9pt; margin: 3px 0; }
+  .pv-bible p { margin: 3px 0; }
+}
