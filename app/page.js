@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { analyzeVideo } from "../lib/videoAnalysis";
+import { ShotTimeline, ShotDetail, PromptsList, promptsToMarkdown } from "./ShotStudio";
 
 const PLATFORMS = ["", "TikTok", "Instagram Reels", "YouTube Shorts", "YouTube (largo)", "Facebook / Meta Ads", "LinkedIn", "Anuncio de TV / web", "Otro"];
 
@@ -44,6 +45,13 @@ export default function Home() {
   const [data, setData] = useState(null);
   const [report, setReport] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [selectedShot, setSelectedShot] = useState(null);
+  const [shotPrompts, setShotPrompts] = useState({});
+  const [shotStatus, setShotStatus] = useState({});
+  const [shotErrors, setShotErrors] = useState({});
+  const [bible, setBible] = useState(null);
+  const [bibleError, setBibleError] = useState("");
+  const promptBase = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -81,13 +89,87 @@ export default function Home() {
       } catch {}
       const result = await analyzeVideo(file, (label, pct) => setProgress({ label, pct }));
       setData(result);
+      setSelectedShot(result.scenes[0]?.index ?? null);
 
-      setProgress({ label: "La IA está estudiando el video a fondo (puede tardar 1–4 minutos)…", pct: 100 });
-      setStreaming(true);
+      setProgress({ label: "La IA está estudiando el video y generando los prompts de cada toma (puede tardar 1–4 minutos)…", pct: 100 });
+      const context = { platform, goal, transcript, notes };
+      const [reportResult] = await Promise.allSettled([streamReport(result, context), generateShotPrompts(result, context)]);
+      if (reportResult.status === "rejected") throw reportResult.reason;
+      setProgress({ label: "Análisis completo ✔", pct: 100 });
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setBusy(false);
+      setStreaming(false);
+    }
+  }
+
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-app-password": password },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
+    return j;
+  }
+
+  async function runShotChunk(shots) {
+    const { base, shotFrames, bible: b } = promptBase.current;
+    setShotStatus((st) => ({ ...st, ...Object.fromEntries(shots.map((s) => [s.index, "loading"])) }));
+    try {
+      const r = await postJson("/api/shot-prompts", {
+        ...base,
+        mode: "shots",
+        bible: b,
+        shots: shots.map((s) => ({ ...s, frames: shotFrames[s.index] })),
+      });
+      const got = Object.fromEntries((r.shots || []).map((p) => [p.shot, p]));
+      setShotPrompts((pr) => ({ ...pr, ...got }));
+      setShotStatus((st) => ({ ...st, ...Object.fromEntries(shots.map((s) => [s.index, got[s.index] ? "ready" : "error"])) }));
+    } catch (e) {
+      setShotStatus((st) => ({ ...st, ...Object.fromEntries(shots.map((s) => [s.index, "error"])) }));
+      setShotErrors((er) => ({ ...er, ...Object.fromEntries(shots.map((s) => [s.index, e.message])) }));
+    }
+  }
+
+  async function generateShotPrompts(result, context) {
+    setShotPrompts({});
+    setShotErrors({});
+    setBible(null);
+    setBibleError("");
+    setShotStatus(Object.fromEntries(result.scenes.map((s) => [s.index, "loading"])));
+    const base = { meta: result.meta, colorGrade: result.colorGrade, palette: result.palette, context, effort };
+    promptBase.current = { base, shotFrames: result.shotFrames, bible: null };
+
+    const every = Math.max(1, Math.ceil(result.frames.length / 10));
+    const refFrames = result.frames.filter((_, i) => i % every === 0).slice(0, 10);
+    try {
+      const b = await postJson("/api/shot-prompts", { ...base, mode: "bible", refFrames });
+      promptBase.current.bible = b;
+      setBible(b);
+    } catch (e) {
+      setBibleError(e.message);
+    }
+
+    const chunks = [];
+    for (let i = 0; i < result.scenes.length; i += 3) chunks.push(result.scenes.slice(i, i + 3));
+    let next = 0;
+    const worker = async () => {
+      while (next < chunks.length) await runShotChunk(chunks[next++]);
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+
+  async function streamReport(result, context) {
+    setStreaming(true);
+    try {
+      const { shotFrames, ...forReport } = result;
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-app-password": password },
-        body: JSON.stringify({ ...result, effort, context: { platform, goal, transcript, notes } }),
+        body: JSON.stringify({ ...forReport, effort, context }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -102,26 +184,26 @@ export default function Home() {
         acc += decoder.decode(value, { stream: true });
         setReport(acc);
       }
-      setProgress({ label: "Análisis completo ✔", pct: 100 });
-    } catch (e) {
-      setError(e.message || String(e));
     } finally {
-      setBusy(false);
       setStreaming(false);
     }
   }
 
+  function selectShot(index) {
+    setSelectedShot(index);
+    document.getElementById("shot-detail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function download() {
     const name = (file?.name || "video").replace(/\.[^.]+$/, "");
-    const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
+    const appendix = data ? `\n\n---\n\n${promptsToMarkdown({ bible, scenes: data.scenes, prompts: shotPrompts })}` : "";
+    const blob = new Blob([report + appendix], { type: "text/markdown;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `ingenieria-inversa-${name}.md`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
-
-  const hues = ["#7c5cff", "#5b8cff", "#22d3ee", "#34d399", "#f59e0b", "#f472b6"];
 
   return (
     <main className="wrap">
@@ -228,22 +310,6 @@ export default function Home() {
             )}
           </div>
 
-          <h2 style={{ marginTop: 20 }}>Línea de tiempo de tomas</h2>
-          <div className="timeline">
-            {data.scenes.map((s, i) => (
-              <div
-                key={s.index}
-                className="seg"
-                title={`Toma ${s.index}: ${s.start}s–${s.end}s · movimiento ${s.motion}`}
-                style={{ width: `${(s.duration / data.meta.duration) * 100}%`, background: hues[i % hues.length], opacity: 0.45 + (s.brightness / 100) * 0.55 }}
-              />
-            ))}
-          </div>
-          <div className="tl-labels">
-            <span>0:00</span>
-            <span>{fmtTime(data.meta.duration)}</span>
-          </div>
-
           <h2 style={{ marginTop: 20 }}>Paleta dominante</h2>
           <div className="palette">
             {data.palette.map((p) => (
@@ -272,6 +338,38 @@ export default function Home() {
               </figure>
             ))}
           </div>
+        </section>
+      )}
+
+      {data && (
+        <section className="card section">
+          <h2>Línea de tiempo de tomas ({data.scenes.length})</h2>
+          <ShotTimeline
+            scenes={data.scenes}
+            duration={data.meta.duration}
+            shotFrames={data.shotFrames}
+            status={shotStatus}
+            selected={selectedShot}
+            onSelect={selectShot}
+          />
+          <ShotDetail
+            scene={data.scenes.find((s) => s.index === selectedShot)}
+            frames={data.shotFrames?.[selectedShot]}
+            prompt={shotPrompts[selectedShot]}
+            status={shotStatus[selectedShot]}
+            error={shotErrors[selectedShot]}
+            videoUrl={videoUrl}
+            onRetry={(index) => runShotChunk(data.scenes.filter((s) => s.index === index))}
+          />
+          <PromptsList
+            bible={bible}
+            bibleError={bibleError}
+            scenes={data.scenes}
+            shotFrames={data.shotFrames}
+            prompts={shotPrompts}
+            status={shotStatus}
+            onSelect={selectShot}
+          />
         </section>
       )}
 

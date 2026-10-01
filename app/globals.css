@@ -77,3 +77,74 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); font
 .thinking { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .92rem; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent-2); animation: pulse 1s infinite alternate; }
 @keyframes pulse { from { opacity: .2; } to { opacity: 1; } }
+
+/* Línea de tiempo interactiva de tomas */
+.stl { margin-top: 6px; }
+.stl-track { display: flex; width: 100%; border-radius: 10px; overflow: hidden; background: var(--panel-2); }
+.stl-seg { all: unset; box-sizing: border-box; display: flex; flex-direction: column; min-width: 0; cursor: pointer; border-right: 2px solid var(--bg); position: relative; }
+.stl-seg:last-child { border-right: 0; }
+.stl-thumb { display: block; height: 64px; background: var(--hue) center / cover no-repeat; opacity: .85; transition: opacity .15s; }
+.stl-bar { position: relative; display: flex; align-items: center; gap: 4px; justify-content: center; height: 30px; background: var(--hue); opacity: .75; font-size: .75rem; color: #fff; overflow: hidden; white-space: nowrap; transition: opacity .15s; }
+.stl-bar small { opacity: .85; }
+.stl-seg:hover .stl-thumb, .stl-seg:hover .stl-bar { opacity: 1; }
+.stl-seg.sel { outline: 3px solid #fff; outline-offset: -3px; z-index: 1; }
+.stl-seg.sel .stl-thumb, .stl-seg.sel .stl-bar { opacity: 1; }
+.stl-seg:focus-visible { outline: 3px solid var(--accent-2); outline-offset: -3px; }
+.stl-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.stl-bar .stl-dot { position: absolute; top: 4px; right: 4px; }
+.stl-dot.ready { background: var(--ok); }
+.stl-dot.loading { background: #fbbf24; animation: pulse 1s infinite alternate; }
+.stl-dot.error { background: var(--danger); }
+.stl-ticks { position: relative; height: 20px; margin-top: 4px; font-size: .72rem; color: var(--muted); }
+.stl-ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.stl-ticks span:first-child { transform: none; }
+.stl-ticks span::before { content: ""; position: absolute; left: 50%; top: -4px; width: 1px; height: 4px; background: var(--border); }
+.stl-hint { margin: 6px 0 0; font-size: .8rem; }
+
+/* Detalle de la toma */
+.shot-detail { margin-top: 18px; padding: 16px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); scroll-margin-top: 16px; }
+.sd-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 12px; }
+.sd-head h3 { margin: 0; font-size: 1.1rem; }
+.sd-head .muted { font-size: .85rem; }
+.sd-media { display: grid; grid-template-columns: minmax(0, 260px) 1fr; gap: 12px; align-items: start; }
+@media (max-width: 700px) { .sd-media { grid-template-columns: 1fr; } }
+.shot-player { width: 100%; max-height: 360px; border-radius: 10px; background: #000; }
+.sd-frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.sd-frames figure { margin: 0; background: var(--panel); border-radius: 8px; overflow: hidden; }
+.sd-frames img { width: 100%; display: block; }
+.sd-frames figcaption { font-size: .72rem; color: var(--muted); padding: 4px 6px; text-transform: capitalize; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.chips span { font-size: .78rem; padding: 3px 10px; border-radius: 99px; background: var(--panel); border: 1px solid var(--border); color: var(--muted); }
+.prompt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 880px) { .prompt-grid { grid-template-columns: 1fr; } }
+.prompt-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-width: 0; }
+.prompt-card h4, .prompt-card h5 { margin: 0; font-size: .95rem; }
+.prompt-card h5 { font-size: .85rem; color: var(--muted); }
+.prompt-card ul { margin: 8px 0 0; padding-left: 18px; font-size: .9rem; }
+.pc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+.prompt-card pre, .prompts-list pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; white-space: pre-wrap; word-break: break-word; font-size: .82rem; line-height: 1.5; max-height: 280px; overflow: auto; margin: 0; }
+.prompt-card pre.neg { max-height: 120px; color: var(--muted); }
+.prompt-card details { margin-top: 10px; }
+.prompt-card summary, .bible summary { cursor: pointer; font-size: .85rem; color: var(--accent-2); }
+table.fields { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .82rem; }
+table.fields th, table.fields td { border-top: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+table.fields th { width: 34%; color: var(--muted); font-weight: 500; }
+table.beats th { width: auto; }
+table.beats td:first-child { white-space: nowrap; color: var(--accent-2); }
+button.small { padding: 6px 10px; font-size: .8rem; }
+
+/* Lista de prompts */
+.prompts-list { margin-top: 24px; }
+.pl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 12px; }
+.pl-head h2 { margin: 0; }
+.bible { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+.bible-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 10px; }
+.bible-grid h5 { margin: 0 0 6px; color: var(--muted); }
+.bible-item { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.bible-item p { margin: 4px 0 0; font-size: .82rem; }
+.pl-item { border-top: 1px solid var(--border); padding: 14px 0; }
+.pl-title { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; cursor: pointer; width: 100%; }
+.pl-title:focus-visible { outline: 2px solid var(--accent-2); border-radius: 8px; }
+.pl-title img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
+.pl-title span { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.pl-title small { font-size: .78rem; }

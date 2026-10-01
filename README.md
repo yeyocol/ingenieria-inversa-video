@@ -6,7 +6,9 @@ App web para hacer ingeniería inversa de cualquier video: sube el archivo y obt
 
 1. **Análisis técnico en tu navegador** (el video no se sube completo):
    - Metadatos: duración, resolución, relación de aspecto, orientación.
-   - Detección de cortes y tomas, cortes por minuto, duración de cada toma.
+   - Detección de tomas ajustada al cuadro exacto (búsqueda binaria), con tipo de transición:
+     corte directo, disolvencia o fundido a negro; cortes por minuto y duración de cada toma.
+   - Fotogramas de inicio, medio y final de cada toma.
    - Brillo, saturación y nivel de movimiento por toma.
    - Paleta de color dominante (HEX).
    - Etalonaje medido: puntos de negro y blanco, contraste, temperatura, matiz y tono de sombras y luces.
@@ -19,7 +21,14 @@ App web para hacer ingeniería inversa de cualquier video: sube el archivo y obt
    (Veo, Kling, Seedance, Runway, Sora), checklist de fidelidad, mejoras y,
    al final, una tabla con los valores exactos para replicar el etalonaje en el
    panel Ajustar (Adjust) de CapCut: básico, HSL, curvas y ruedas de color.
-3. Exporta el informe en Markdown.
+3. **Línea de tiempo interactiva de tomas:** miniaturas, marcas de tiempo y, al hacer clic
+   en una toma, su reproducción en bucle y sus prompts súper detallados con arquitectura
+   estructurada:
+   - Prompt de imagen del fotograma inicial (Nano Banana, Imagen, Midjourney, GPT Image, Flux).
+   - Prompt de video con acciones por tiempo y ajustes para Veo/Flow, Kling, Seedance y Runway.
+   - Negative prompts, texto en pantalla para postproducción y checklist de fidelidad.
+   - Biblia de consistencia (personajes, productos, locaciones y look) usada en todas las tomas.
+4. Exporta el informe y los prompts en Markdown (y los prompts también en JSON).
 
 ## Variables de entorno
 
