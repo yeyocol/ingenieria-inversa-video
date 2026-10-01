@@ -659,6 +659,12 @@ export default function Home() {
               <button className="ghost" onClick={download}>
                 Descargar .md
               </button>
+              <button className="ghost" onClick={saveProject}>
+                💾 Guardar proyecto
+              </button>
+              <button className="ghost" onClick={exportPdf}>
+                📄 Exportar PDF
+              </button>
             </div>
           )}
         </section>
