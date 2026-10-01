@@ -4,8 +4,6 @@ import { BIBLE_SCHEMA, SHOTS_SCHEMA, PROMPT_SYSTEM, bibleToText, globalContext, 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const EFFORTS = new Set(["medium", "high"]);
-
 function jsonError(message, status) {
   return Response.json({ error: message }, { status });
 }
@@ -36,7 +34,7 @@ export async function POST(req) {
   } catch {
     return jsonError("Solicitud inválida.", 400);
   }
-  const { mode, meta, colorGrade, palette, context, effort, refFrames, bible, shots } = body || {};
+  const { mode, meta, colorGrade, palette, context, refFrames, bible, shots } = body || {};
   if (!meta || (mode !== "bible" && mode !== "shots")) return jsonError("Solicitud inválida.", 400);
 
   const ctx = globalContext({ meta, colorGrade, palette, context });
@@ -55,19 +53,25 @@ Crea la BIBLIA DE CONSISTENCIA del video para recrearlo con IA: cada personaje, 
     schema = BIBLE_SCHEMA;
   } else {
     if (!Array.isArray(shots) || !shots.length) return jsonError("Faltan las tomas.", 400);
-    content = [];
+    // Primero el bloque fijo de todo el análisis (contexto + biblia) marcado para caché:
+    // las siguientes llamadas de este mismo video lo leen al 10% del precio.
+    content = [
+      {
+        type: "text",
+        text: `${ctx}
+
+BIBLIA DE CONSISTENCIA (usa estas descripciones palabra por palabra):
+${bibleToText(bible)}`,
+        cache_control: { type: "ephemeral" },
+      },
+    ];
     for (const s of shots) {
       content.push({ type: "text", text: shotLine(s) });
       content.push(...imageBlocks(s.frames, (f) => `Toma #${s.index} · fotograma de ${f.role} · t=${f.t}s`));
     }
     content.push({
       type: "text",
-      text: `${ctx}
-
-BIBLIA DE CONSISTENCIA (usa estas descripciones palabra por palabra):
-${bibleToText(bible)}
-
-Genera los prompts súper detallados para recrear con máxima fidelidad CADA una de estas tomas: ${shots.map((s) => `#${s.index}`).join(", ")}. Devuelve una entrada por toma, en el mismo orden, con el número de toma en "shot".`,
+      text: `Genera los prompts súper detallados para recrear con máxima fidelidad CADA una de estas tomas: ${shots.map((s) => `#${s.index}`).join(", ")}. Devuelve una entrada por toma, en el mismo orden, con el número de toma en "shot".`,
     });
     schema = SHOTS_SCHEMA;
   }
@@ -81,7 +85,7 @@ Genera los prompts súper detallados para recrear con máxima fidelidad CADA una
       fallbacks: "default",
       thinking: { type: "adaptive" },
       output_config: {
-        effort: mode === "bible" ? "medium" : EFFORTS.has(effort) ? effort : "high",
+        effort: "medium",
         format: { type: "json_schema", schema },
       },
       system: PROMPT_SYSTEM,
@@ -91,7 +95,7 @@ Genera los prompts súper detallados para recrear con máxima fidelidad CADA una
     if (final.stop_reason === "refusal") return jsonError("El modelo no pudo generar los prompts de estas tomas.", 422);
     if (final.stop_reason === "max_tokens") return jsonError("La respuesta se cortó por longitud.", 422);
     const text = final.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-    return Response.json(JSON.parse(text));
+    return Response.json({ ...JSON.parse(text), _meta: { model: final.model, usage: final.usage } });
   } catch (error) {
     console.error(error);
     if (error instanceof SyntaxError) return jsonError("La respuesta del modelo no tuvo un formato válido.", 502);

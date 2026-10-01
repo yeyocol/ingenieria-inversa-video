@@ -36,6 +36,17 @@ App web para hacer ingeniería inversa de cualquier video: sube el archivo y obt
    - **Exportar PDF**: versión para imprimir en fondo claro; en el diálogo elige "Guardar como PDF".
    - Descarga del informe y los prompts en Markdown (y los prompts también en JSON).
 
+## Ahorro de créditos
+
+- **Prompts por toma bajo demanda:** se generan al hacer clic en una toma, o con "Generar todos"
+  (pide confirmación si son más de 3). La biblia de consistencia se crea una sola vez, con los
+  primeros prompts.
+- **Esfuerzo medio** para la biblia y los prompts por toma. El informe usa la profundidad elegida.
+- **Caché de instrucciones:** el bloque fijo de cada video (contexto + biblia) se reutiliza entre
+  llamadas y se cobra al 10%.
+- **Medidor de gasto:** cada análisis muestra su costo en USD a partir del consumo real que devuelve
+  la API (informe, biblia, prompts y tokens leídos de caché). También queda en el historial.
+
 ## Variables de entorno
 
 | Variable | Obligatoria | Uso |

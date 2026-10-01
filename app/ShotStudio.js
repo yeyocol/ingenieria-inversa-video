@@ -76,8 +76,8 @@ export function ShotTimeline({ scenes, duration, shotFrames, status, selected, o
         ))}
       </div>
       <p className="muted stl-hint">
-        Haz clic en una toma para ver su prompt exacto de imagen y de video. <span className="stl-dot ready" /> listo ·{" "}
-        <span className="stl-dot loading" /> generando · <span className="stl-dot error" /> error
+        Haz clic en una toma para generar y ver su prompt exacto de imagen y de video. <span className="stl-dot" /> pendiente ·{" "}
+        <span className="stl-dot ready" /> listo · <span className="stl-dot loading" /> generando · <span className="stl-dot error" /> error
       </p>
     </div>
   );
@@ -123,7 +123,7 @@ function Fields({ rows }) {
   );
 }
 
-export function ShotDetail({ scene, frames, prompt, status, error, videoUrl, onRetry }) {
+export function ShotDetail({ scene, frames, prompt, status, error, videoUrl, onGenerate }) {
   if (!scene) return null;
   return (
     <div className="shot-detail" id="shot-detail">
@@ -158,6 +158,14 @@ export function ShotDetail({ scene, frames, prompt, status, error, videoUrl, onR
         <span>Movimiento {scene.motion}</span>
       </div>
 
+      {status === "pending" && (
+        <div className="pending-box">
+          <span className="muted">Los prompts de esta toma se generan solo cuando los pides, para no gastar créditos de más.</span>
+          <button className="small" onClick={() => onGenerate(scene.index)}>
+            ✨ Generar prompts de esta toma
+          </button>
+        </div>
+      )}
       {status === "loading" && (
         <div className="thinking">
           <div className="dot" /> Generando los prompts de esta toma…
@@ -166,7 +174,7 @@ export function ShotDetail({ scene, frames, prompt, status, error, videoUrl, onR
       {status === "error" && (
         <p className="error">
           {error || "No se pudieron generar los prompts de esta toma."}{" "}
-          <button className="ghost small" onClick={() => onRetry(scene.index)}>
+          <button className="ghost small" onClick={() => onGenerate(scene.index)}>
             Reintentar
           </button>
         </p>
@@ -324,9 +332,11 @@ export function promptsToMarkdown({ bible, scenes, prompts }) {
   return out.join("\n");
 }
 
-export function PromptsList({ bible, bibleError, scenes, shotFrames, prompts, status, onSelect }) {
+export function PromptsList({ bible, bibleError, scenes, shotFrames, prompts, status, onSelect, onGenerateAll }) {
   const md = promptsToMarkdown({ bible, scenes, prompts });
   const readyCount = scenes.filter((s) => prompts[s.index]).length;
+  const missing = scenes.filter((s) => !prompts[s.index] && status[s.index] !== "loading").length;
+  const anyLoading = scenes.some((s) => status[s.index] === "loading");
 
   function download(ext) {
     const content = ext === "json" ? JSON.stringify({ bible, shots: scenes.map((s) => ({ ...s, prompts: prompts[s.index] || null })) }, null, 2) : md;
@@ -346,6 +356,16 @@ export function PromptsList({ bible, bibleError, scenes, shotFrames, prompts, st
           {readyCount}/{scenes.length} tomas listas
         </span>
         <div className="actions" style={{ marginTop: 0 }}>
+          {missing > 0 && (
+            <button
+              className="small"
+              onClick={() => {
+                if (missing <= 3 || window.confirm(`Se generarán los prompts de ${missing} tomas. Esto consume créditos de la API. ¿Continuar?`)) onGenerateAll();
+              }}
+            >
+              ✨ Generar {readyCount ? "los que faltan" : "todos"} ({missing})
+            </button>
+          )}
           <CopyButton text={md} label="Copiar todos" />
           <button className="ghost small" onClick={() => download("md")}>
             Descargar .md
@@ -395,10 +415,12 @@ export function PromptsList({ bible, bibleError, scenes, shotFrames, prompts, st
         </details>
       ) : bibleError ? (
         <p className="error">Biblia de consistencia: {bibleError}</p>
-      ) : (
+      ) : anyLoading ? (
         <div className="thinking">
           <div className="dot" /> Creando la biblia de consistencia (personajes, producto y look)…
         </div>
+      ) : (
+        <p className="muted">La biblia de consistencia se crea junto con los primeros prompts que generes.</p>
       )}
 
       {scenes.map((s) => {
@@ -437,7 +459,13 @@ export function PromptsList({ bible, bibleError, scenes, shotFrames, prompts, st
                 </div>
               </div>
             ) : (
-              <p className="muted">{status[s.index] === "error" ? "Error al generar. Ábrela para reintentar." : "Generando…"}</p>
+              <p className="muted">
+                {status[s.index] === "error"
+                  ? "Error al generar. Ábrela para reintentar."
+                  : status[s.index] === "loading"
+                    ? "Generando…"
+                    : "Pendiente: haz clic en la toma para generar sus prompts."}
+              </p>
             )}
           </div>
         );

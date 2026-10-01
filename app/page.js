@@ -6,7 +6,11 @@ import DOMPurify from "dompurify";
 import { analyzeVideo } from "../lib/videoAnalysis";
 import { ShotTimeline, ShotDetail, PromptsList, promptsToMarkdown } from "./ShotStudio";
 import PrintView from "./PrintView";
+import { usageSummary, fmtUsd } from "../lib/pricing";
 import { saveAnalysis, listAnalyses, getAnalysis, deleteAnalysis, toProjectFile, fromProjectFile } from "../lib/storage";
+
+const USAGE_RE = /<!--IIV_USAGE:([\s\S]*?)-->/;
+const USAGE_TAIL = /\n?<!--IIV_USAGE[\s\S]*$/;
 
 const PLATFORMS = ["", "TikTok", "Instagram Reels", "YouTube Shorts", "YouTube (largo)", "Facebook / Meta Ads", "LinkedIn", "Anuncio de TV / web", "Otro"];
 
@@ -28,6 +32,23 @@ function EnergyChart({ values }) {
     <svg className="energy" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Energía del audio por segundo">
       <polyline points={pts} fill="none" stroke="#22d3ee" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
     </svg>
+  );
+}
+
+function CostLine({ usage }) {
+  const u = usageSummary(usage);
+  if (!u.total) return null;
+  return (
+    <div className="cost-line">
+      💲 Gasto de este análisis: <b>{fmtUsd(u.total)}</b>
+      <span className="muted">
+        {" "}
+        · informe {fmtUsd(u.report)}
+        {u.bible ? ` · biblia ${fmtUsd(u.bible)}` : ""}
+        {u.shotCount ? ` · prompts de ${u.shotCount} toma${u.shotCount === 1 ? "" : "s"} ${fmtUsd(u.shots)}` : ""}
+        {u.cacheRead ? ` · ${u.cacheRead.toLocaleString("es")} tokens leídos de caché` : ""}
+      </span>
+    </div>
   );
 }
 
@@ -54,6 +75,8 @@ export default function Home() {
   const [bible, setBible] = useState(null);
   const [bibleError, setBibleError] = useState("");
   const promptBase = useRef(null);
+  const inFlight = useRef(new Set());
+  const [usage, setUsage] = useState({ report: null, bible: null, shots: [] });
   const inputRef = useRef(null);
   const projectRef = useRef(null);
   const [currentId, setCurrentId] = useState(null);
@@ -84,6 +107,7 @@ export default function Home() {
       report,
       bible,
       shotPrompts,
+      usage,
     };
   }
 
@@ -101,7 +125,7 @@ export default function Home() {
     }, 2000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentId, data, report, bible, shotPrompts]);
+  }, [currentId, data, report, bible, shotPrompts, usage]);
 
   function loadRecord(rec) {
     setFile(null);
@@ -116,16 +140,21 @@ export default function Home() {
     setData(rec.data);
     setReport(rec.report || "");
     setBible(rec.bible || null);
-    setBibleError(rec.bible ? "" : "No disponible en este análisis.");
+    setBibleError("");
     const prompts = rec.shotPrompts || {};
     setShotPrompts(prompts);
-    setShotStatus(Object.fromEntries(rec.data.scenes.map((s) => [s.index, prompts[s.index] ? "ready" : "error"])));
-    setShotErrors(Object.fromEntries(rec.data.scenes.filter((s) => !prompts[s.index]).map((s) => [s.index, "No se generaron en este análisis."])));
+    setShotStatus(Object.fromEntries(rec.data.scenes.map((s) => [s.index, prompts[s.index] ? "ready" : "pending"])));
+    setShotErrors({});
+    setUsage(rec.usage || { report: null, bible: null, shots: [] });
+    inFlight.current = new Set();
     setSelectedShot(rec.data.scenes[0]?.index ?? null);
+    const every = Math.max(1, Math.ceil((rec.data.frames?.length || 0) / 10));
     promptBase.current = {
-      base: { meta: rec.data.meta, colorGrade: rec.data.colorGrade, palette: rec.data.palette, context: rec.context, effort: rec.effort },
+      base: { meta: rec.data.meta, colorGrade: rec.data.colorGrade, palette: rec.data.palette, context: rec.context },
       shotFrames: rec.data.shotFrames,
+      refFrames: (rec.data.frames || []).filter((_, i) => i % every === 0).slice(0, 10),
       bible: rec.bible || null,
+      biblePromise: null,
     };
     setCurrentId(rec.id);
     setCreatedAt(rec.createdAt);
@@ -224,10 +253,11 @@ export default function Home() {
       setSavedAt(null);
       setSelectedShot(result.scenes[0]?.index ?? null);
 
-      setProgress({ label: "La IA está estudiando el video y generando los prompts de cada toma (puede tardar 1–4 minutos)…", pct: 100 });
+      setProgress({ label: "La IA está estudiando el video a fondo (puede tardar 1–4 minutos). Los prompts de cada toma se generan al hacer clic en ella.", pct: 100 });
       const context = { platform, goal, transcript, notes };
-      const [reportResult] = await Promise.allSettled([streamReport(result, context), generateShotPrompts(result, context)]);
-      if (reportResult.status === "rejected") throw reportResult.reason;
+      setUsage({ report: null, bible: null, shots: [] });
+      preparePrompts(result, context);
+      await streamReport(result, context);
       setProgress({ label: "Análisis completo ✔", pct: 100 });
     } catch (e) {
       setError(e.message || String(e));
@@ -248,51 +278,88 @@ export default function Home() {
     return j;
   }
 
+  function addShotUsage(entry) {
+    setUsage((u) => ({ ...u, shots: [...(u.shots || []), entry] }));
+  }
+
+  // La biblia de consistencia se crea una sola vez, la primera vez que se piden prompts
+  function ensureBible() {
+    const pb = promptBase.current;
+    if (!pb) return Promise.resolve(null);
+    if (pb.bible) return Promise.resolve(pb.bible);
+    if (!pb.biblePromise) {
+      pb.biblePromise = postJson("/api/shot-prompts", { ...pb.base, mode: "bible", refFrames: pb.refFrames || [] })
+        .then(({ _meta, ...b }) => {
+          pb.bible = b;
+          setBible(b);
+          setBibleError("");
+          if (_meta) setUsage((u) => ({ ...u, bible: _meta }));
+          return b;
+        })
+        .catch((e) => {
+          setBibleError(e.message);
+          pb.biblePromise = null;
+          return null;
+        });
+    }
+    return pb.biblePromise;
+  }
+
   async function runShotChunk(shots) {
-    const { base, shotFrames, bible: b } = promptBase.current;
+    const { base, shotFrames } = promptBase.current;
     setShotStatus((st) => ({ ...st, ...Object.fromEntries(shots.map((s) => [s.index, "loading"])) }));
     try {
+      const b = await ensureBible();
       const r = await postJson("/api/shot-prompts", {
         ...base,
         mode: "shots",
         bible: b,
         shots: shots.map((s) => ({ ...s, frames: shotFrames[s.index] })),
       });
+      if (r._meta) addShotUsage({ ...r._meta, shots: shots.map((s) => s.index) });
       const got = Object.fromEntries((r.shots || []).map((p) => [p.shot, p]));
       setShotPrompts((pr) => ({ ...pr, ...got }));
       setShotStatus((st) => ({ ...st, ...Object.fromEntries(shots.map((s) => [s.index, got[s.index] ? "ready" : "error"])) }));
     } catch (e) {
       setShotStatus((st) => ({ ...st, ...Object.fromEntries(shots.map((s) => [s.index, "error"])) }));
       setShotErrors((er) => ({ ...er, ...Object.fromEntries(shots.map((s) => [s.index, e.message])) }));
+    } finally {
+      shots.forEach((s) => inFlight.current.delete(s.index));
     }
   }
 
-  async function generateShotPrompts(result, context) {
-    setShotPrompts({});
-    setShotErrors({});
-    setBible(null);
-    setBibleError("");
-    setShotStatus(Object.fromEntries(result.scenes.map((s) => [s.index, "loading"])));
-    const base = { meta: result.meta, colorGrade: result.colorGrade, palette: result.palette, context, effort };
-    promptBase.current = { base, shotFrames: result.shotFrames, bible: null };
-
-    const every = Math.max(1, Math.ceil(result.frames.length / 10));
-    const refFrames = result.frames.filter((_, i) => i % every === 0).slice(0, 10);
-    try {
-      const b = await postJson("/api/shot-prompts", { ...base, mode: "bible", refFrames });
-      promptBase.current.bible = b;
-      setBible(b);
-    } catch (e) {
-      setBibleError(e.message);
-    }
-
+  // Genera prompts solo para las tomas pedidas (bajo demanda), en lotes de 3 y hasta 3 a la vez
+  async function requestShots(indices) {
+    if (!data || !promptBase.current) return;
+    const todo = data.scenes.filter((s) => indices.includes(s.index) && !inFlight.current.has(s.index) && !shotPrompts[s.index]);
+    if (!todo.length) return;
+    todo.forEach((s) => inFlight.current.add(s.index));
+    setShotStatus((st) => ({ ...st, ...Object.fromEntries(todo.map((s) => [s.index, "loading"])) }));
     const chunks = [];
-    for (let i = 0; i < result.scenes.length; i += 3) chunks.push(result.scenes.slice(i, i + 3));
+    for (let i = 0; i < todo.length; i += 3) chunks.push(todo.slice(i, i + 3));
     let next = 0;
     const worker = async () => {
       while (next < chunks.length) await runShotChunk(chunks[next++]);
     };
     await Promise.all([worker(), worker(), worker()]);
+  }
+
+  function preparePrompts(result, context) {
+    setShotPrompts({});
+    setShotErrors({});
+    setBible(null);
+    setBibleError("");
+    setShotStatus(Object.fromEntries(result.scenes.map((s) => [s.index, "pending"])));
+    inFlight.current = new Set();
+    const every = Math.max(1, Math.ceil(result.frames.length / 10));
+    const refFrames = result.frames.filter((_, i) => i % every === 0).slice(0, 10);
+    promptBase.current = {
+      base: { meta: result.meta, colorGrade: result.colorGrade, palette: result.palette, context },
+      shotFrames: result.shotFrames,
+      refFrames,
+      bible: null,
+      biblePromise: null,
+    };
   }
 
   async function streamReport(result, context) {
@@ -315,7 +382,14 @@ export default function Home() {
         const { value, done } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        setReport(acc);
+        setReport(acc.replace(USAGE_TAIL, ""));
+      }
+      const m = acc.match(USAGE_RE);
+      if (m) {
+        try {
+          const meta = JSON.parse(m[1]);
+          setUsage((u) => ({ ...u, report: meta }));
+        } catch {}
       }
     } finally {
       setStreaming(false);
@@ -324,6 +398,7 @@ export default function Home() {
 
   function selectShot(index) {
     setSelectedShot(index);
+    if (shotStatus[index] === "pending") requestShots([index]);
     document.getElementById("shot-detail")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -373,6 +448,7 @@ export default function Home() {
                     <small className="muted">
                       {new Date(h.createdAt).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" })} · {h.duration}s · {h.shots} tomas ·{" "}
                       {h.promptsReady}/{h.shots} prompts{h.hasReport ? "" : " · sin informe"}
+                      {h.costUsd ? ` · ${fmtUsd(h.costUsd)}` : ""}
                     </small>
                   </span>
                 </button>
@@ -463,6 +539,7 @@ export default function Home() {
               {savedAt ? ` · 💾 Guardado en tu historial a las ${savedAt.toLocaleTimeString("es", { timeStyle: "short" })}` : " · Guardando en tu historial…"}
               {!videoUrl && " · Video original no cargado (los fotogramas sí están guardados)"}
             </span>
+            <CostLine usage={usage} />
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <button className="ghost small" onClick={saveProject} disabled={busy}>
@@ -550,7 +627,7 @@ export default function Home() {
             status={shotStatus[selectedShot]}
             error={shotErrors[selectedShot]}
             videoUrl={videoUrl}
-            onRetry={(index) => runShotChunk(data.scenes.filter((s) => s.index === index))}
+            onGenerate={(index) => requestShots([index])}
           />
           <PromptsList
             bible={bible}
@@ -560,6 +637,7 @@ export default function Home() {
             prompts={shotPrompts}
             status={shotStatus}
             onSelect={selectShot}
+            onGenerateAll={() => requestShots(data.scenes.map((s) => s.index))}
           />
         </section>
       )}

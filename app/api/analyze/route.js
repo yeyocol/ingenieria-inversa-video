@@ -64,11 +64,14 @@ export async function POST(req) {
         }
 
         const final = await stream.finalMessage();
+        // Consumo real para el medidor de gasto (la app lo separa del informe)
+        const usageMarker = `\n<!--IIV_USAGE:${JSON.stringify({ model: final.model, usage: final.usage })}-->`;
         if (final.stop_reason === "refusal") {
           send("\n\n> ⚠️ El modelo no pudo completar el análisis de este video.");
         } else if (final.stop_reason === "max_tokens") {
           send("\n\n> ⚠️ El análisis se cortó por longitud. Prueba con un video más corto.");
         }
+        send(usageMarker);
       } catch (error) {
         let msg = "Error inesperado al analizar.";
         if (error instanceof Anthropic.AuthenticationError) msg = "La ANTHROPIC_API_KEY no es válida.";
