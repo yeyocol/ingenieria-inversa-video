@@ -219,6 +219,13 @@ export default function Home() {
             <div className="stat"><b>{data.stats.avgSaturation}%</b><span>Saturación media</span></div>
             <div className="stat"><b>{data.audio.available ? data.audio.bpmEstimate ?? "n/d" : "—"}</b><span>BPM estimado</span></div>
             <div className="stat"><b>{data.audio.available ? `${data.audio.silenceRatio}%` : "—"}</b><span>Silencio</span></div>
+            {data.colorGrade && (
+              <>
+                <div className="stat"><b>{data.colorGrade.contrastStdPct}%</b><span>Contraste (desv. luminancia)</span></div>
+                <div className="stat"><b>{data.colorGrade.warmth > 4 ? "Cálido" : data.colorGrade.warmth < -4 ? "Frío" : "Neutro"}</b><span>Temperatura (R−B {data.colorGrade.warmth})</span></div>
+                <div className="stat"><b>{data.colorGrade.blackPointPct}%</b><span>Punto de negro{data.colorGrade.blackPointPct > 6 ? " · look mate" : ""}</span></div>
+              </>
+            )}
           </div>
 
           <h2 style={{ marginTop: 20 }}>Línea de tiempo de tomas</h2>

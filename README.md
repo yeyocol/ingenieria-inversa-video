@@ -9,13 +9,16 @@ App web para hacer ingeniería inversa de cualquier video: sube el archivo y obt
    - Detección de cortes y tomas, cortes por minuto, duración de cada toma.
    - Brillo, saturación y nivel de movimiento por toma.
    - Paleta de color dominante (HEX).
+   - Etalonaje medido: puntos de negro y blanco, contraste, temperatura, matiz y tono de sombras y luces.
    - Audio: energía por segundo, % de silencio, BPM estimado, picos.
    - Hasta 30 fotogramas clave (gancho + uno por toma + cobertura).
 2. **Análisis con IA (Claude)** que cruza fotogramas y métricas y entrega:
    radiografía, ficha técnica, gancho (0–3 s), estructura narrativa, shot list,
    dirección de arte, tipografía, edición y ritmo, audio, psicología,
    guion reconstruido, plan de réplica paso a paso, prompts de IA por toma
-   (Veo, Kling, Seedance, Runway, Sora), checklist de fidelidad y mejoras.
+   (Veo, Kling, Seedance, Runway, Sora), checklist de fidelidad, mejoras y,
+   al final, una tabla con los valores exactos para replicar el etalonaje en el
+   panel Ajustar (Adjust) de CapCut: básico, HSL, curvas y ruedas de color.
 3. Exporta el informe en Markdown.
 
 ## Variables de entorno

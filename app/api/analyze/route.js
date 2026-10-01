@@ -25,7 +25,7 @@ export async function POST(req) {
   } catch {
     return jsonError("Solicitud inválida.", 400);
   }
-  const { frames, meta, stats, scenes, palette, audio, context = {}, effort } = body || {};
+  const { frames, meta, stats, scenes, palette, colorGrade, audio, context = {}, effort } = body || {};
   if (!Array.isArray(frames) || !frames.length || !meta || !stats || !Array.isArray(scenes)) {
     return jsonError("Faltan datos del análisis del video.", 400);
   }
@@ -37,7 +37,7 @@ export async function POST(req) {
     content.push({ type: "text", text: `Fotograma ${i + 1} · t=${f.t}s · toma #${f.scene}` });
     content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } });
   }
-  content.push({ type: "text", text: buildUserPrompt({ meta, stats, scenes, palette: palette || [], audio: audio || { available: false, reason: "sin datos" }, context }) });
+  content.push({ type: "text", text: buildUserPrompt({ meta, stats, scenes, palette: palette || [], colorGrade, audio: audio || { available: false, reason: "sin datos" }, context }) });
 
   const client = new Anthropic();
   const encoder = new TextEncoder();
